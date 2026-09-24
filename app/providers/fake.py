@@ -49,4 +49,4 @@ class EchoLLMProvider:
 
     def generate(self, system: str, user: str) -> str:
         blocks = len(re.findall(r"^\[\d+\] 출처:", user, re.MULTILINE))
-        return f"(테스트 생성기) 발췌 {blocks}건을 받았다."
+        return f"(테스트 생성기) 발췌 {blocks}건을 받았다." + (" [1]" if blocks else "")

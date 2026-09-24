@@ -58,7 +58,18 @@ def chunk_document(doc: ParsedDoc) -> list[Chunk]:
     buf: list[ProseBlock] = []
     buf_len = 0
 
+    if target <= 0 or not 0 <= overlap < target:
+        raise ValueError("Require 0 <= CHUNK_OVERLAP_CHARS < CHUNK_TARGET_CHARS")
+    blocks = []
     for block in doc.blocks:
+        if isinstance(block, ProseBlock) and len(block.text) > target:
+            for start in range(0, len(block.text), target - overlap):
+                blocks.append(ProseBlock(block.text[start:start + target], block.page, block.section_path))
+                if start + target >= len(block.text):
+                    break
+        else:
+            blocks.append(block)
+    for block in blocks:
         if isinstance(block, TableRowBlock):
             # 표 행은 그 자체로 완결된 사실이므로 쪼개지도 합치지도 않는다.
             _flush_prose(buf, doc.products, chunks)
@@ -96,4 +107,6 @@ def chunk_document(doc: ParsedDoc) -> list[Chunk]:
     _flush_prose(buf, doc.products, chunks)
     for i, c in enumerate(chunks):
         c.ordinal = i
+        if not c.products:
+            c.content = f"{doc.title}\n{c.content}"
     return chunks

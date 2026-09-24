@@ -7,3 +7,4 @@ venv/
 data/eval/results/*.json
 data/eval/questions.yaml
 data/eval/draft.yaml
+data/*.log

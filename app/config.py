@@ -24,6 +24,7 @@ class Settings:
     embedding_provider: str = os.getenv("EMBEDDING_PROVIDER", "ollama")
     llm_provider: str = os.getenv("LLM_PROVIDER", "ollama")
     llm_model: str = os.getenv("LLM_MODEL", "qwen3:8b")
+    llm_context_size: int = _int("LLM_CONTEXT_SIZE", 8192)
     ollama_base_url: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
     embedding_model: str = os.getenv("EMBEDDING_MODEL", "bge-m3")
     embedding_dim: int = _int("EMBEDDING_DIM", 1024)

@@ -7,10 +7,13 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-specrag}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
       OLLAMA_BASE_URL: http://ollama:11434
+      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-ollama}
+      LLM_PROVIDER: ${LLM_PROVIDER:-ollama}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-bge-m3}
       LLM_MODEL: ${LLM_MODEL:-qwen3:8b}
+      LLM_CONTEXT_SIZE: ${LLM_CONTEXT_SIZE:-8192}
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     volumes:
       - ./data:/app/data:ro
     depends_on:
@@ -26,7 +29,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-specrag}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./app/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
@@ -38,7 +41,7 @@ services:
   ollama:
     image: ollama/ollama
     ports:
-      - "11434:11434"
+      - "127.0.0.1:${OLLAMA_PORT:-11434}:11434"
     volumes:
       - ollama:/root/.ollama
 

@@ -184,7 +184,7 @@ def _prose_blocks(page, tables, page_no: int, section: str) -> list[ProseBlock]:
         if any(rect.intersects(tr) for tr in table_rects):
             continue
         text = re.sub(r"[ \t]+", " ", text).strip()
-        if len(text) < 40:          # 머리글·쪽번호·라벨 제거
+        if not text or text.isdigit():
             continue
         out.append(ProseBlock(text=text, page=page_no, section_path=section))
     return out

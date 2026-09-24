@@ -56,7 +56,9 @@ class OllamaLLMProvider:
                     {"role": "user", "content": user},
                 ],
                 "stream": False,
-                "options": {"temperature": 0.0},   # 스펙 답변에 창의성은 해롭다
+                "think": False,
+                "options": {"temperature": 0.0, "num_ctx": settings.llm_context_size,
+                            "num_predict": 1024},
             },
             timeout=300.0,
         )

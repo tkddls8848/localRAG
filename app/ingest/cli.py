@@ -8,17 +8,18 @@
 from __future__ import annotations
 
 import argparse
+import glob
 import logging
 import sys
 from pathlib import Path
 
 from app.ingest.chunker import chunk_document
-from app.ingest.parser import parse_pdf
+from app.ingest.documents import parse_document, SUPPORTED
 
 
 def _dry_run(paths: list[Path]) -> int:
     for p in paths:
-        doc = parse_pdf(p)
+        doc = parse_document(p)
         chunks = chunk_document(doc)
         tables = sum(1 for c in chunks if c.kind == "table_row")
         print(f"{p.name}")
@@ -45,11 +46,20 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     paths: list[Path] = []
-    for p in args.paths:
-        if not p.exists():
-            print(f"파일 없음: {p}", file=sys.stderr)
+    for pattern in args.paths:
+        matches = [Path(p) for p in sorted(glob.glob(str(pattern)))]
+        if not matches:
+            print(f"파일 없음: {pattern}", file=sys.stderr)
             return 2
-        paths.append(p)
+        for p in matches:
+            if p.is_dir():
+                paths.extend(sorted(f for f in p.rglob('*') if f.suffix.lower() in SUPPORTED))
+            else:
+                paths.append(p)
+    paths = list(dict.fromkeys(paths))
+    if not paths:
+        print("지원하는 문서가 없습니다.", file=sys.stderr)
+        return 2
 
     if args.dry_run:
         return _dry_run(paths)
@@ -60,7 +70,12 @@ def main(argv: list[str] | None = None) -> int:
     provider = get_embedding_provider()
     failed = 0
     for p in paths:
-        r = ingest_pdf(p, provider=provider, force=args.force)
+        try:
+            r = ingest_pdf(p, provider=provider, force=args.force)
+        except Exception as exc:
+            print(f"[!!] {p.name}: {exc}", file=sys.stderr)
+            failed += 1
+            continue
         mark = {"indexed": "OK", "skipped": "--", "failed": "!!"}[r.status]
         print(f"[{mark}] {p.name}  {' / '.join(r.products or [])}  청크 {r.chunks}  {r.detail}")
         failed += r.status == "failed"

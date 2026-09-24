@@ -28,11 +28,15 @@ class Hit:
 
     @property
     def citation(self) -> str:
+        if not self.page_from:
+            return f"{self.doc_title} · {self.section_path}"
         page = (
             f"p{self.page_from}"
             if self.page_from == self.page_to
             else f"p{self.page_from}-{self.page_to}"
         )
+        if self.source_path.lower().endswith(".pptx"):
+            page = page.replace("p", "슬라이드 ")
         return f"{self.doc_title} {page}"
 
 
@@ -70,7 +74,7 @@ def _dense(cur, vector: list[float], products: list[str], limit: int) -> list[Hi
     cur.execute(
         f"""SELECT {_COLUMNS}
             FROM chunks c JOIN documents d ON d.id = c.document_id
-            WHERE (%(products)s::text[] IS NULL OR c.products && %(products)s::text[])
+            WHERE d.status = 'indexed' AND (%(products)s::text[] IS NULL OR c.products && %(products)s::text[])
             ORDER BY c.embedding <=> %(vec)s::vector
             LIMIT %(limit)s""",
         {"vec": str(vector), "products": products or None, "limit": limit},
@@ -89,7 +93,7 @@ def _sparse(cur, query: str, products: list[str], limit: int) -> list[Hit]:
             FROM chunks c
             JOIN documents d ON d.id = c.document_id,
                  websearch_to_tsquery('simple', %(q)s) AS q
-            WHERE to_tsvector('simple', c.content) @@ q
+            WHERE d.status = 'indexed' AND to_tsvector('simple', c.content) @@ q
               AND (%(products)s::text[] IS NULL OR c.products && %(products)s::text[])
             ORDER BY ts_rank(to_tsvector('simple', c.content), q) DESC
             LIMIT %(limit)s""",
@@ -120,6 +124,20 @@ def fuse(rankings: list[list[Hit]], top_k: int) -> list[Hit]:
     return out
 
 
+def _trigram(cur, query: str, products: list[str], limit: int) -> list[Hit]:
+    """한국어 어절의 부분 일치를 pg_trgm의 단어 유사도로 보완한다."""
+    cur.execute(
+        f"""SELECT {_COLUMNS}
+            FROM chunks c JOIN documents d ON d.id = c.document_id
+            WHERE d.status = 'indexed' AND %(q)s <%% c.content
+              AND (%(products)s::text[] IS NULL OR c.products && %(products)s::text[])
+            ORDER BY word_similarity(%(q)s, c.content) DESC, c.id
+            LIMIT %(limit)s""",
+        {"q": query, "products": products or None, "limit": limit},
+    )
+    return _rows_to_hits(cur.fetchall())
+
+
 def search(
     conn,
     query: str,
@@ -134,5 +152,6 @@ def search(
     with conn.cursor() as cur:
         dense = _dense(cur, embedding, products, n)
         sparse = _sparse(cur, query, products, n)
+        trigram = _trigram(cur, query, products, n)
 
-    return fuse([dense, sparse], top_k)
+    return fuse([dense, sparse, trigram], top_k)

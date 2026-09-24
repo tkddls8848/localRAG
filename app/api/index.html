@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>사내 지식 검색</title>
+<style>
+body{font:16px/1.7 system-ui;background:#f3f6fa;color:#172a40;max-width:960px;margin:40px auto;padding:0 20px}h1{margin-bottom:0}section{background:white;border:1px solid #dde4ed;border-radius:12px;padding:24px;margin:24px 0}textarea{box-sizing:border-box;width:100%;padding:12px;font:inherit;border:1px solid #aab8c7;border-radius:6px}button{background:#155bc5;color:white;border:0;border-radius:6px;padding:10px 18px;font:inherit;cursor:pointer;margin-top:12px}button:disabled{opacity:.5}pre{white-space:pre-wrap;font:inherit}small{color:#52657b}li{margin:12px 0}.error{color:#a12525}
+</style>
+<h1>사내 지식 검색</h1><p>문서에서 답을 찾고, 근거를 함께 확인하세요.</p>
+<small id="status">연결 확인 중…</small>
+<section><h2>문서 추가</h2><form id="upload"><input aria-label="문서 선택" type="file" id="file" accept=".pdf,.docx,.xlsx,.pptx" required><br><button>색인하기</button></form><p id="uploadStatus" role="status"></p><details><summary>색인된 문서</summary><ul id="documents"></ul></details></section>
+<section><h2>질문하기</h2><form id="ask"><textarea id="question" aria-label="질문" rows="3" maxlength="4000" placeholder="예: SR650 V4 최대 메모리 용량은?" required></textarea><button>답변 찾기</button></form><pre id="answer" role="status"></pre><ol id="sources"></ol></section>
+<script>
+const $=id=>document.getElementById(id);
+async function request(url,options){const r=await fetch(url,options);const data=await r.json();if(!r.ok)throw Error(typeof data.detail==='string'?data.detail:'요청을 처리할 수 없습니다. 입력과 서비스 상태를 확인하세요.');return data;}
+async function refresh(){try{const d=await request('/documents');$('documents').replaceChildren();for(const doc of d.documents){const li=document.createElement('li');li.textContent=`${doc.title} · ${doc.status} · ${doc.chunks}개 청크`; $('documents').append(li);}}catch(e){$('documents').textContent=e.message;}}
+$('upload').onsubmit=async e=>{e.preventDefault();const button=e.target.querySelector('button');button.disabled=true;$('uploadStatus').textContent='문서 분석 및 색인 중… 큰 문서는 몇 분 걸릴 수 있습니다.';try{const form=new FormData();form.append('file',$('file').files[0]);const d=await request('/ingest',{method:'POST',body:form});$('uploadStatus').textContent=`${d.path}: ${d.status}, ${d.chunks}개 청크`;await refresh();}catch(e){$('uploadStatus').textContent=e.message;}finally{button.disabled=false;}};
+$('ask').onsubmit=async e=>{e.preventDefault();const button=e.target.querySelector('button');button.disabled=true;$('answer').textContent='문서를 검색하고 답변을 작성하고 있습니다…';$('sources').replaceChildren();try{const d=await request('/ask',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:$('question').value})});$('answer').textContent=d.answer;for(const s of d.sources){const li=document.createElement('li');li.value=s.index;const title=document.createElement('strong');title.textContent=s.citation;const excerpt=document.createElement('pre');excerpt.textContent=s.excerpt;li.append(title,excerpt);$('sources').append(li);}}catch(e){$('answer').textContent=e.message;}finally{button.disabled=false;}};
+fetch('/ready').then(r=>r.json()).then(d=>{$('status').textContent=d.status==='ready'?'검색 준비 완료':'DB 또는 모델 준비가 필요합니다. /ready에서 상태를 확인하세요.';}).catch(()=>{$('status').textContent='서버 연결 실패';});refresh();
+</script></html>

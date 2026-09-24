@@ -5,12 +5,14 @@
 
 ## 현재 상태
 
-**색인 파이프라인 구현 완료.** 검색·질의응답 API는 아직 없습니다.
+**로컬 RAG 구현 완료.** PDF/Office 색인, 하이브리드 검색, 출처를 포함한 답변 API와 웹 화면을 제공합니다.
 
 | 단계 | 상태 |
 |---|---|
 | PDF 파싱 · 청킹 | 완료. 실제 Lenovo Press 문서로 검증 |
-| 임베딩 · DB 적재 | 코드 완료. 실행 검증은 로컬 환경 필요 |
+| 임베딩 · DB 적재 | Ollama + pgvector. 별도 스키마를 사용하는 실제 DB 통합 테스트 제공 |
+| Office 파싱 | DOCX 문단·표, XLSX 시트·셀, PPTX 슬라이드·표 |
+| 웹 화면 · 업로드 | `/`에서 파일 업로드, 문서 목록, 질문·출처 확인 |
 | 검색 · 질의응답 API | 완료. 실제 PostgreSQL 로 검증 |
 | 평가 스크립트 | 완료. 정답표는 직접 작성해야 함 |
 
@@ -18,6 +20,7 @@
 |---|---|
 | [docs/architecture.md](docs/architecture.md) | 전체 구조, 구성 요소, 데이터 모델, 평가 방법 |
 | [docs/decisions.md](docs/decisions.md) | 기술 선택의 근거와 트레이드오프 (ADR) |
+| [docs/verification.md](docs/verification.md) | 실제 로컬 색인·질의응답 검증 결과 |
 
 ## 한 줄 요약
 
@@ -56,6 +59,44 @@ PDF/Office 문서 → 파싱 → 청킹 → 임베딩 → PostgreSQL(pgvector)
 
 ## 실행
 
+### Windows PowerShell (설치된 Ollama 사용)
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python -m pip install -r requirements.txt
+Copy-Item .env.example .env   # 이미 있으면 기존 설정을 유지
+docker compose up -d db
+ollama pull bge-m3
+ollama pull qwen3:8b
+.\.venv\Scripts\python -m app.ingest.cli -v "data/pdfs/*.pdf"
+.\.venv\Scripts\python -m uvicorn app.api.main:app --host 127.0.0.1 --port 8000
+```
+
+브라우저에서 http://localhost:8000 을 엽니다. API 명세는 `/docs`에 있습니다.
+기존 PostgreSQL이 5432를 사용하면 `.env`에서 `POSTGRES_PORT=55432`로 지정합니다.
+기존 Ollama 모델을 사용할 경우 `LLM_MODEL`을 설치된 모델명으로 변경할 수 있습니다.
+임베딩은 `bge-m3`와 스키마의 1024차원을 유지해야 합니다.
+
+CLI는 와일드카드와 디렉터리 재귀 색인을 지원합니다. 웹 업로드는 파일당 50MB까지이며
+동기 처리이므로 큰 PDF는 시간이 걸립니다. 업로드 원본은 처리 후 제거하고 추출한 청크를 DB에 보관합니다.
+Office의 실제 페이지를 추정하지 않습니다. DOCX는 문단·표 위치, XLSX는 시트·행·셀,
+PPTX는 슬라이드 번호를 출처로 표시합니다. XLSX 수식은 수식 문자열로 읽으며 계산하지 않습니다.
+구형 `.doc/.xls/.ppt`, 암호화 문서, 이미지 OCR은 지원하지 않습니다.
+
+### 자동 검증
+
+```powershell
+.\.venv\Scripts\python -m pip install -r requirements-dev.txt
+.\.venv\Scripts\python -m pytest -q
+$env:RUN_DB_TESTS='1'
+.\.venv\Scripts\python -m pytest -q
+```
+
+DB 통합 테스트는 임시 스키마를 생성·제거하며 fake 모델로 업로드, 중복 색인,
+재색인, 실제 벡터·전문검색, 모델 필터, API를 검증합니다. 모델의 답변 품질 평가는 별도로 필요합니다.
+문서 색인 및 서버 실행 후 `python tools/check_local.py`로 실제 한국어 답변과
+미등록 모델의 답변 거절도 확인할 수 있습니다.
+
 ### 파싱만 확인 (DB·모델 불필요)
 
 ```bash
@@ -88,9 +129,15 @@ curl -X POST localhost:8000/ask -H 'content-type: application/json' \
 
 | 엔드포인트 | 용도 |
 |---|---|
+| `GET /` | 문서 업로드·질문 웹 화면 |
+| `POST /ingest` | multipart `file` 업로드. `?force=true`로 재색인 |
 | `POST /ask` | 질문 → 답변 + 출처. `use_rag:false` 로 무검색 대비군 |
 | `GET /documents` | 색인된 문서와 상태 |
 | `GET /health` | 상태 확인 |
+| `GET /ready` | DB 스키마·Ollama 모델 설치 확인. 준비되지 않았으면 503 |
+
+답변의 `[번호]`와 반환하는 출처를 연결합니다. 출처가 없거나 범위를 벗어난 번호가 있으면
+근거 부족 답변으로 처리합니다. 이 검증은 인용 형식 검증이며 문장별 사실 검증을 대신하지 않습니다.
 
 ### 모델 없이 경로만 확인
 
@@ -103,7 +150,8 @@ EMBEDDING_PROVIDER=fake LLM_PROVIDER=fake ./.venv/bin/python -m app.ingest.cli d
 
 ## 검증된 동작
 
-제품 가이드 6건(787페이지, 청크 5,415개) 전부 파싱 확인:
+기존 PDF 파서 기준 제품 가이드 6건(787페이지, 청크 5,415개) 파싱 결과입니다.
+현재 구현은 짧은 본문도 보존하고 긴 산문을 분할하므로 청크 수는 아래 기록과 다를 수 있습니다.
 
 | 문서 | 페이지 | 청크 (표 / 산문) |
 |---|---|---|
@@ -138,7 +186,7 @@ Description: ThinkSystem SR650i V4 Inference Configuration
 
 ## 검색 동작
 
-밀집(pgvector 코사인) + 희소(전문검색) 두 경로를 RRF 로 결합합니다.
+밀집(pgvector 코사인) + 희소(전문검색) + 단어 유사도(pg_trgm) 경로를 RRF 로 결합합니다.
 질문에서 모델명을 감지해 해당 모델 청크로 범위를 좁힙니다.
 
 실제 PostgreSQL 에 SR650 V4(1,574청크) 와 SR650a/SR650i V4(999청크) 를
@@ -195,7 +243,7 @@ cp data/eval/questions.example.yaml data/eval/questions.yaml
 ### 실행
 
 ```bash
-python -m app.evaluation.run                        # 검색만. 모델 불필요, 초 단위
+python -m app.evaluation.run                        # 검색만. 임베딩 모델 필요, 생성 모델 불필요
 python -m app.evaluation.run --answers              # 답변 생성까지 채점
 python -m app.evaluation.run --answers --baseline   # 무검색 대비군과 비교
 ```
