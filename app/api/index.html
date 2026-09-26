@@ -1,18 +1,486 @@
 <!doctype html>
-<html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<html lang="ko">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>사내 지식 검색</title>
+<!--
+  운영 콘솔. 시연용 화면이 아니라 PoC 기간에 실제로 쓰는 도구다.
+  네 가지를 한 화면에서 할 수 있어야 한다.
+    질문   답변과 근거를 보고 틀렸으면 즉시 표시한다
+    진단   왜 못 찾았는지 본다(질의 분석 + 어느 경로가 무엇을 올렸는지)
+    문서   무엇이 색인됐고 무엇이 실패했는지 본다
+    운영   실패한 질문 목록. 다음에 무엇을 고칠지 여기서 고른다
+  빌드 도구를 쓰지 않는다. 파일 하나로 끝나야 사내 서버에 올리기 쉽다.
+-->
 <style>
-body{font:16px/1.7 system-ui;background:#f3f6fa;color:#172a40;max-width:960px;margin:40px auto;padding:0 20px}h1{margin-bottom:0}section{background:white;border:1px solid #dde4ed;border-radius:12px;padding:24px;margin:24px 0}textarea{box-sizing:border-box;width:100%;padding:12px;font:inherit;border:1px solid #aab8c7;border-radius:6px}button{background:#155bc5;color:white;border:0;border-radius:6px;padding:10px 18px;font:inherit;cursor:pointer;margin-top:12px}button:disabled{opacity:.5}pre{white-space:pre-wrap;font:inherit}small{color:#52657b}li{margin:12px 0}.error{color:#a12525}
+  :root{
+    --bg:#f4f6fa; --card:#fff; --line:#dbe2ec; --ink:#16243a; --muted:#5b6b80;
+    --accent:#1550b8; --ok:#137a4a; --warn:#96590a; --bad:#a8241f; --code:#f6f8fb;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{--bg:#10151c; --card:#171e28; --line:#2a3644; --ink:#e6ecf4;
+          --muted:#9aabbf; --accent:#5b9bff; --ok:#49c78b; --warn:#e0a33c;
+          --bad:#ef6b64; --code:#0d1219;}
+  }
+  *{box-sizing:border-box}
+  body{font:15px/1.65 system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);
+       color:var(--ink);margin:0;padding:24px 16px 64px}
+  main{max-width:1000px;margin:0 auto}
+  header{display:flex;flex-wrap:wrap;gap:12px;align-items:baseline;justify-content:space-between}
+  h1{font-size:20px;margin:0}
+  h2{font-size:15px;margin:0 0 12px;letter-spacing:.01em}
+  section{background:var(--card);border:1px solid var(--line);border-radius:10px;
+          padding:18px;margin:16px 0}
+  nav{display:flex;gap:6px;flex-wrap:wrap;margin:16px 0 0}
+  nav button{background:transparent;color:var(--muted);border:1px solid var(--line)}
+  nav button[aria-selected=true]{background:var(--accent);color:#fff;border-color:var(--accent)}
+  button{background:var(--accent);color:#fff;border:0;border-radius:6px;padding:8px 14px;
+         font:inherit;cursor:pointer}
+  button.ghost{background:transparent;color:var(--accent);border:1px solid var(--line)}
+  button:disabled{opacity:.45;cursor:default}
+  input,select,textarea{font:inherit;color:inherit;background:var(--card);
+    border:1px solid var(--line);border-radius:6px;padding:8px}
+  textarea{width:100%;resize:vertical}
+  label{color:var(--muted);font-size:13px;display:inline-flex;gap:6px;align-items:center}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:10px}
+  .grow{flex:1 1 220px}
+  small,.muted{color:var(--muted)}
+  pre{white-space:pre-wrap;word-break:break-word;background:var(--code);
+      border:1px solid var(--line);border-radius:6px;padding:12px;margin:0;font:inherit}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--muted);font-weight:600}
+  .tag{display:inline-block;border:1px solid var(--line);border-radius:999px;
+       padding:1px 8px;font-size:12px;color:var(--muted);margin-right:4px}
+  .ok{color:var(--ok)} .warn{color:var(--warn)} .bad{color:var(--bad)}
+  .banner{border-left:3px solid var(--warn);background:var(--code);padding:10px 12px;
+          border-radius:0 6px 6px 0;margin:12px 0;font-size:14px}
+  .hide{display:none}
+  ol.sources{padding-left:22px;margin:14px 0 0}
+  ol.sources li{margin:12px 0}
 </style>
-<h1>사내 지식 검색</h1><p>문서에서 답을 찾고, 근거를 함께 확인하세요.</p>
-<small id="status">연결 확인 중…</small>
-<section><h2>문서 추가</h2><form id="upload"><input aria-label="문서 선택" type="file" id="file" accept=".pdf,.docx,.xlsx,.pptx" required><br><button>색인하기</button></form><p id="uploadStatus" role="status"></p><details><summary>색인된 문서</summary><ul id="documents"></ul></details></section>
-<section><h2>질문하기</h2><form id="ask"><textarea id="question" aria-label="질문" rows="3" maxlength="4000" placeholder="예: SR650 V4 최대 메모리 용량은?" required></textarea><button>답변 찾기</button></form><pre id="answer" role="status"></pre><ol id="sources"></ol></section>
+
+<main>
+  <header>
+    <div>
+      <h1>사내 지식 검색</h1>
+      <small>문서에서 답을 찾고 <strong>근거와 함께</strong> 확인합니다.</small>
+    </div>
+    <div class="row" style="margin:0">
+      <label>API 키
+        <input id="key" type="password" size="16" placeholder="없으면 비워 둠"
+               autocomplete="off">
+      </label>
+      <span id="status" class="muted">연결 확인 중…</span>
+    </div>
+  </header>
+
+  <nav role="tablist">
+    <button role="tab" data-tab="ask" aria-selected="true">질문</button>
+    <button role="tab" data-tab="diag" aria-selected="false">진단</button>
+    <button role="tab" data-tab="docs" aria-selected="false">문서</button>
+    <button role="tab" data-tab="ops" aria-selected="false">운영</button>
+  </nav>
+
+  <!-- 질문 -->
+  <section id="tab-ask">
+    <h2>질문</h2>
+    <form id="askForm">
+      <textarea id="question" rows="3" maxlength="4000" required
+        placeholder="예: SR650a V4 최대 메모리 용량은?  /  SR630 V4 와 SR650 V4 의 드라이브 베이 차이는?"></textarea>
+      <div class="row">
+        <button>답변 찾기</button>
+        <label>발췌 수 <input id="topk" type="number" min="1" max="50" value="10" size="3"></label>
+        <label>리랭커
+          <select id="reranker">
+            <option value="">서버 기본</option>
+            <option value="none">없음</option>
+            <option value="rules">규칙</option>
+            <option value="llm">LLM</option>
+          </select>
+        </label>
+        <label><input id="stream" type="checkbox" checked> 스트리밍</label>
+        <label><input id="norag" type="checkbox"> 검색 없이(대비군)</label>
+      </div>
+    </form>
+    <div id="warn" class="banner hide"></div>
+    <div class="row"><small id="meta"></small></div>
+    <pre id="answer" role="status" style="margin-top:12px"></pre>
+    <div class="row hide" id="rate">
+      <small>이 답변이 맞았습니까?</small>
+      <button class="ghost" data-rating="1">맞음</button>
+      <button class="ghost" data-rating="-1">틀림</button>
+      <small id="rateDone" class="muted"></small>
+    </div>
+    <ol class="sources" id="sources"></ol>
+  </section>
+
+  <!-- 진단 -->
+  <section id="tab-diag" class="hide">
+    <h2>검색 진단</h2>
+    <small>생성 모델을 거치지 않고 검색 결과만 봅니다. 답을 못 찾았을 때
+      <strong>검색이 무엇을 가져왔는지</strong>부터 확인합니다.</small>
+    <form id="diagForm" class="row">
+      <input id="diagQ" class="grow" placeholder="예: CF3G feature code" required>
+      <button>검색만 실행</button>
+    </form>
+    <div id="diagMeta" class="row"></div>
+    <table id="diagTable" class="hide">
+      <thead><tr><th>#</th><th>점수</th><th>출처</th><th>경로</th><th>발췌</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <!-- 문서 -->
+  <section id="tab-docs" class="hide">
+    <h2>문서</h2>
+    <form id="upForm" class="row">
+      <input type="file" id="file" accept=".pdf,.docx,.xlsx,.pptx" required>
+      <input id="acl" placeholder="열람 그룹(쉼표, 비우면 전사 공개)" class="grow">
+      <label><input id="force" type="checkbox"> 재색인</label>
+      <button>색인하기</button>
+    </form>
+    <div class="row">
+      <button class="ghost" id="syncPlan">서버 디렉터리 점검</button>
+      <button class="ghost" id="syncRun">변경분 색인</button>
+      <button class="ghost" id="reloadDocs">목록 새로고침</button>
+    </div>
+    <p id="upStatus" class="muted" role="status"></p>
+    <table>
+      <thead><tr><th>문서</th><th>상태</th><th>페이지</th><th>청크</th>
+        <th>열람</th><th>비고</th><th></th></tr></thead>
+      <tbody id="docRows"></tbody>
+    </table>
+  </section>
+
+  <!-- 운영 -->
+  <section id="tab-ops" class="hide">
+    <h2>운영</h2>
+    <div class="row">
+      <button class="ghost" id="loadOps">불러오기</button>
+      <label><input id="onlyFailed" type="checkbox" checked> 실패한 질문만</label>
+    </div>
+    <div id="opsStats" class="row"></div>
+    <table>
+      <thead><tr><th>시각</th><th>질문</th><th>결과</th><th>지연</th><th>평가</th></tr></thead>
+      <tbody id="opsRows"></tbody>
+    </table>
+  </section>
+</main>
+
 <script>
-const $=id=>document.getElementById(id);
-async function request(url,options){const r=await fetch(url,options);const data=await r.json();if(!r.ok)throw Error(typeof data.detail==='string'?data.detail:'요청을 처리할 수 없습니다. 입력과 서비스 상태를 확인하세요.');return data;}
-async function refresh(){try{const d=await request('/documents');$('documents').replaceChildren();for(const doc of d.documents){const li=document.createElement('li');li.textContent=`${doc.title} · ${doc.status} · ${doc.chunks}개 청크`; $('documents').append(li);}}catch(e){$('documents').textContent=e.message;}}
-$('upload').onsubmit=async e=>{e.preventDefault();const button=e.target.querySelector('button');button.disabled=true;$('uploadStatus').textContent='문서 분석 및 색인 중… 큰 문서는 몇 분 걸릴 수 있습니다.';try{const form=new FormData();form.append('file',$('file').files[0]);const d=await request('/ingest',{method:'POST',body:form});$('uploadStatus').textContent=`${d.path}: ${d.status}, ${d.chunks}개 청크`;await refresh();}catch(e){$('uploadStatus').textContent=e.message;}finally{button.disabled=false;}};
-$('ask').onsubmit=async e=>{e.preventDefault();const button=e.target.querySelector('button');button.disabled=true;$('answer').textContent='문서를 검색하고 답변을 작성하고 있습니다…';$('sources').replaceChildren();try{const d=await request('/ask',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:$('question').value})});$('answer').textContent=d.answer;for(const s of d.sources){const li=document.createElement('li');li.value=s.index;const title=document.createElement('strong');title.textContent=s.citation;const excerpt=document.createElement('pre');excerpt.textContent=s.excerpt;li.append(title,excerpt);$('sources').append(li);}}catch(e){$('answer').textContent=e.message;}finally{button.disabled=false;}};
-fetch('/ready').then(r=>r.json()).then(d=>{$('status').textContent=d.status==='ready'?'검색 준비 완료':'DB 또는 모델 준비가 필요합니다. /ready에서 상태를 확인하세요.';}).catch(()=>{$('status').textContent='서버 연결 실패';});refresh();
-</script></html>
+const $ = id => document.getElementById(id);
+const el = (tag, text, cls) => { const n = document.createElement(tag);
+  if (text !== undefined) n.textContent = text; if (cls) n.className = cls; return n; };
+
+// API 키는 브라우저에만 둔다. 서버에 저장하지 않는다.
+try { $('key').value = localStorage.getItem('specrag.key') || ''; } catch {}
+$('key').onchange = () => { try { localStorage.setItem('specrag.key', $('key').value); } catch {} };
+
+function headers(json) {
+  const h = json ? {'content-type': 'application/json'} : {};
+  const key = $('key').value.trim();
+  if (key) h['authorization'] = 'Bearer ' + key;
+  return h;
+}
+
+async function api(url, options = {}) {
+  const res = await fetch(url, options);
+  const text = await res.text();
+  let data = {};
+  try { data = text ? JSON.parse(text) : {}; } catch { data = {detail: text}; }
+  if (!res.ok) throw Error(typeof data.detail === 'string' ? data.detail
+    : '요청을 처리할 수 없습니다. 입력과 서비스 상태를 확인하세요.');
+  return data;
+}
+
+// --- 탭 ---
+for (const tab of document.querySelectorAll('nav [role=tab]')) {
+  tab.onclick = () => {
+    for (const other of document.querySelectorAll('nav [role=tab]')) {
+      const on = other === tab;
+      other.setAttribute('aria-selected', on);
+      $('tab-' + other.dataset.tab).classList.toggle('hide', !on);
+    }
+  };
+}
+
+// --- 상태 ---
+function showStatus() {
+  fetch('/ready').then(r => r.json()).then(d => {
+    const c = d.checks || {};
+    const bad = Object.entries(c).filter(([, v]) => v === false).map(([k]) => k);
+    $('status').className = bad.length ? 'bad' : 'ok';
+    $('status').textContent = bad.length
+      ? '준비되지 않음: ' + bad.join(', ') + (c.models_missing ? ' (' + c.models_missing.join(', ') + ')' : '')
+      : '준비 완료 · 마이그레이션 ' + (c.migrations || '-');
+  }).catch(() => { $('status').className = 'bad';
+                   $('status').textContent = '서버 연결 실패'; });
+}
+
+// --- 질문 ---
+let lastQueryId = null;
+
+function renderSources(list) {
+  $('sources').replaceChildren();
+  for (const s of list) {
+    const li = el('li'); li.value = s.index;
+    const head = el('div');
+    head.append(el('strong', s.citation));
+    if (s.section_path) head.append(el('small', ' · ' + s.section_path));
+    const tags = el('div');
+    for (const p of Object.keys(s.paths || {})) tags.append(el('span', p, 'tag'));
+    if (s.score) tags.append(el('span', '점수 ' + s.score, 'tag'));
+    for (const p of s.products || []) tags.append(el('span', p, 'tag'));
+    li.append(head, tags, el('pre', s.excerpt));
+    $('sources').append(li);
+  }
+}
+
+function renderMeta(data) {
+  const parts = [];
+  if (data.intent) parts.push('의도 ' + data.intent);
+  if (data.reranker) parts.push('리랭커 ' + data.reranker);
+  if (data.model) parts.push(data.model);
+  const t = data.latency_ms || {};
+  const stages = Object.entries(t).filter(([k]) => k !== 'total')
+    .map(([k, v]) => k + ' ' + Math.round(v) + 'ms');
+  if (t.total) stages.push('합계 ' + Math.round(t.total) + 'ms');
+  $('meta').textContent = parts.concat(stages).join(' · ');
+}
+
+function showWarning(text) {
+  $('warn').classList.toggle('hide', !text);
+  $('warn').textContent = text || '';
+}
+
+function payload() {
+  const body = {question: $('question').value, top_k: Number($('topk').value) || null,
+                use_rag: !$('norag').checked};
+  if ($('reranker').value) body.reranker = $('reranker').value;
+  return body;
+}
+
+$('askForm').onsubmit = async event => {
+  event.preventDefault();
+  const button = event.target.querySelector('button');
+  button.disabled = true;
+  showWarning(''); $('rate').classList.add('hide'); $('rateDone').textContent = '';
+  $('sources').replaceChildren(); $('meta').textContent = '';
+  $('answer').textContent = '문서를 검색하고 답변을 작성하고 있습니다…';
+  try {
+    if ($('stream').checked && !$('norag').checked) await askStreaming();
+    else await askOnce();
+  } catch (error) {
+    $('answer').textContent = error.message;
+  } finally { button.disabled = false; }
+};
+
+async function askOnce() {
+  const data = await api('/ask', {method: 'POST', headers: headers(true),
+                                  body: JSON.stringify(payload())});
+  $('answer').textContent = data.answer;
+  renderSources(data.sources || []);
+  renderMeta(data);
+  if (data.warning) showWarning(data.warning);
+  lastQueryId = data.query_id;
+  if (lastQueryId) $('rate').classList.remove('hide');
+}
+
+async function askStreaming() {
+  const res = await fetch('/ask/stream', {method: 'POST', headers: headers(true),
+                                          body: JSON.stringify(payload())});
+  if (!res.ok || !res.body) throw Error('스트리밍을 시작할 수 없습니다.');
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '', body = '';
+  $('answer').textContent = '';
+  while (true) {
+    const {value, done} = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, {stream: true});
+    const frames = buffer.split('\n\n');
+    buffer = frames.pop();
+    for (const frame of frames) {
+      if (!frame.startsWith('data:')) continue;
+      const event = JSON.parse(frame.slice(5));
+      if (event.type === 'sources') { renderSources(event.sources || []); renderMeta(event); }
+      else if (event.type === 'token') { body += event.text; $('answer').textContent = body; }
+      else if (event.type === 'error') { $('answer').textContent = event.detail; }
+      else if (event.type === 'done') {
+        $('answer').textContent = event.answer;
+        renderSources(event.sources || []);
+        renderMeta(event);
+        // 검증은 마지막에만 가능하다. 그래서 여기서 경고를 띄운다.
+        if (event.warning) showWarning(event.warning);
+      }
+    }
+  }
+}
+
+for (const button of document.querySelectorAll('#rate [data-rating]')) {
+  button.onclick = async () => {
+    if (!lastQueryId) return;
+    try {
+      await api('/feedback', {method: 'POST', headers: headers(true),
+        body: JSON.stringify({query_id: lastQueryId, rating: Number(button.dataset.rating)})});
+      $('rateDone').textContent = '기록했습니다. 운영 탭에서 확인할 수 있습니다.';
+    } catch (error) { $('rateDone').textContent = error.message; }
+  };
+}
+
+// --- 진단 ---
+$('diagForm').onsubmit = async event => {
+  event.preventDefault();
+  $('diagMeta').textContent = '검색 중…';
+  try {
+    const data = await api('/search', {method: 'POST', headers: headers(true),
+      body: JSON.stringify({question: $('diagQ').value, top_k: 10})});
+    $('diagMeta').replaceChildren();
+    const add = (name, value) => { if (value && value.length)
+      $('diagMeta').append(el('span', name + ': ' + [].concat(value).join(', '), 'tag')); };
+    add('의도', data.intent);
+    add('제품', data.products);
+    add('식별자', data.identifiers);
+    add('검색어', data.terms);
+    add('지연', Object.entries(data.latency_ms || {})
+      .map(([k, v]) => k + ' ' + Math.round(v) + 'ms'));
+    const body = $('diagTable').querySelector('tbody');
+    body.replaceChildren();
+    (data.hits || []).forEach((hit, index) => {
+      const tr = el('tr');
+      tr.append(el('td', String(index + 1)), el('td', String(hit.score)),
+                el('td', hit.citation));
+      const paths = el('td');
+      for (const [name, rank] of Object.entries(hit.paths || {}))
+        paths.append(el('span', name + ' ' + rank, 'tag'));
+      tr.append(paths, el('td', hit.excerpt.slice(0, 220)));
+      body.append(tr);
+    });
+    $('diagTable').classList.toggle('hide', !(data.hits || []).length);
+    if (!(data.hits || []).length)
+      $('diagMeta').append(el('span', '후보 0건 — 용어집이나 제품 필터를 확인하세요', 'bad'));
+  } catch (error) { $('diagMeta').textContent = error.message; }
+};
+
+// --- 문서 ---
+async function loadDocuments() {
+  try {
+    const data = await api('/documents', {headers: headers()});
+    const body = $('docRows');
+    body.replaceChildren();
+    for (const doc of data.documents) {
+      const tr = el('tr');
+      tr.append(el('td', doc.title));
+      const status = el('td', doc.status);
+      status.className = doc.status === 'indexed' ? 'ok'
+        : (doc.status === 'failed' ? 'bad' : 'warn');
+      tr.append(status, el('td', String(doc.pages ?? '-')),
+                el('td', doc.chunks.toLocaleString()),
+                el('td', (doc.acl_groups || []).join(', ') || '전사'));
+      const note = el('td');
+      if (doc.needs_review) note.append(el('div', '검토 필요(스캔 의심)', 'warn'));
+      if (doc.error) note.append(el('div', doc.error.slice(0, 120), 'bad'));
+      for (const w of doc.warnings || []) note.append(el('div', w, 'muted'));
+      const action = el('td');
+      const remove = el('button', '삭제', 'ghost');
+      remove.onclick = async () => {
+        if (!confirm(doc.title + ' 을 색인에서 지웁니다. 계속할까요?')) return;
+        try { await api('/documents/' + doc.id, {method: 'DELETE', headers: headers()});
+              await loadDocuments(); }
+        catch (error) { $('upStatus').textContent = error.message; }
+      };
+      action.append(remove);
+      tr.append(note, action);
+      body.append(tr);
+    }
+  } catch (error) { $('upStatus').textContent = error.message; }
+}
+
+async function followJob(jobId) {
+  for (let i = 0; i < 3600; i++) {
+    const job = await api('/jobs/' + jobId, {headers: headers()});
+    const stats = job.stats || {};
+    if (job.status === 'done') {
+      $('upStatus').textContent = '완료: ' + JSON.stringify(stats);
+      return loadDocuments();
+    }
+    if (job.status === 'failed') {
+      $('upStatus').textContent = '실패: ' + (job.detail || '');
+      return;
+    }
+    $('upStatus').textContent = '진행 중… ' + (stats.stage || job.status)
+      + (stats.total ? ' ' + stats.done + '/' + stats.total : '');
+    await new Promise(done => setTimeout(done, 1500));
+  }
+}
+
+$('upForm').onsubmit = async event => {
+  event.preventDefault();
+  const button = event.target.querySelector('button');
+  button.disabled = true;
+  $('upStatus').textContent = '업로드 중…';
+  try {
+    const form = new FormData();
+    form.append('file', $('file').files[0]);
+    const query = '?force=' + $('force').checked
+      + '&acl_groups=' + encodeURIComponent($('acl').value);
+    const data = await api('/ingest' + query,
+                           {method: 'POST', headers: headers(), body: form});
+    if (data.job_id) await followJob(data.job_id);
+    else { $('upStatus').textContent = data.path + ': ' + data.status;
+           await loadDocuments(); }
+  } catch (error) { $('upStatus').textContent = error.message; }
+  finally { button.disabled = false; }
+};
+
+$('syncPlan').onclick = async () => {
+  try {
+    const data = await api('/admin/sync?dry_run=true',
+                           {method: 'POST', headers: headers()});
+    $('upStatus').textContent = data.root + ' → ' + JSON.stringify(data.plan);
+  } catch (error) { $('upStatus').textContent = error.message; }
+};
+
+$('syncRun').onclick = async () => {
+  try {
+    const query = '?acl_groups=' + encodeURIComponent($('acl').value);
+    const data = await api('/admin/sync' + query, {method: 'POST', headers: headers()});
+    await followJob(data.job_id);
+  } catch (error) { $('upStatus').textContent = error.message; }
+};
+
+$('reloadDocs').onclick = loadDocuments;
+
+// --- 운영 ---
+$('loadOps').onclick = async () => {
+  try {
+    const stats = await api('/admin/stats', {headers: headers()});
+    $('opsStats').replaceChildren();
+    for (const [name, value] of Object.entries(stats.queries || {}))
+      $('opsStats').append(el('span', name + ' ' + value, 'tag'));
+    const data = await api('/admin/queries?only_failed=' + $('onlyFailed').checked,
+                           {headers: headers()});
+    const body = $('opsRows');
+    body.replaceChildren();
+    for (const row of data.queries) {
+      const tr = el('tr');
+      tr.append(el('td', (row.asked_at || '').replace('T', ' ').slice(0, 19)),
+                el('td', row.question));
+      const result = el('td', row.answered ? (row.grounded === false ? '근거 불일치' : '답변')
+                                           : '근거 없음');
+      result.className = row.answered ? (row.grounded === false ? 'warn' : 'ok') : 'bad';
+      const total = (row.latency_ms || {}).total;
+      tr.append(result, el('td', total ? Math.round(total) + 'ms' : '-'),
+                el('td', row.rating === 1 ? '맞음' : (row.rating === -1 ? '틀림' : '-')));
+      body.append(tr);
+    }
+  } catch (error) {
+    $('opsStats').replaceChildren(el('span', error.message, 'bad'));
+  }
+};
+
+showStatus();
+loadDocuments();
+</script>
+</html>

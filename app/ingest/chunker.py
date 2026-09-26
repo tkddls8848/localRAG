@@ -7,10 +7,13 @@ SR650a V4 를 뒤섞지 않게 만드는 1차 방어선이다(2차는 검색 단
 """
 from __future__ import annotations
 
+import hashlib
+import re
 from dataclasses import dataclass
 
 from app.config import settings
-from app.ingest.parser import ParsedDoc, ProseBlock, TableRowBlock, match_products
+from app.ingest.parser import ParsedDoc, ProseBlock, TableRowBlock
+from app.taxonomy import match_products
 
 
 @dataclass
@@ -22,6 +25,28 @@ class Chunk:
     page_from: int
     page_to: int
     products: list[str]
+    # 검색 결과에서 같은 사실을 여러 건 돌려주지 않기 위한 키. 섹션 경로가
+    # 달라도 같은 제품의 같은 본문이면 같은 해시가 된다.
+    content_hash: str = ""
+    # 컨텍스트 예산 계산용 근사값. 정확한 토큰 수가 필요한 용도는 없다.
+    token_count: int = 0
+
+
+def estimate_tokens(text: str) -> int:
+    """토크나이저를 불러오지 않고 토큰 수를 근사한다.
+
+    영문은 대략 4자/토큰, 한글은 1.5자/토큰이다. 컨텍스트 예산과 보고용
+    수치이므로 이 정도 정확도로 충분하고, 모델별 토크나이저 의존을 피한다.
+    """
+    ascii_chars = sum(1 for c in text if ord(c) < 128)
+    wide = len(text) - ascii_chars
+    return max(1, round(ascii_chars / 4 + wide / 1.5))
+
+
+def _hash(products: list[str], body: str) -> str:
+    normalized = re.sub(r"\s+", " ", body).strip().lower()
+    key = "|".join(sorted(products)) + "||" + normalized
+    return hashlib.blake2b(key.encode("utf-8"), digest_size=16).hexdigest()
 
 
 def _with_context(products: list[str], section: str, body: str) -> str:
@@ -37,15 +62,18 @@ def _flush_prose(
         return
     body = "\n".join(b.text for b in buf)
     products = match_products(body, candidates)
+    content = _with_context(products, buf[0].section_path, body)
     out.append(
         Chunk(
             ordinal=len(out),
             kind="prose",
-            content=_with_context(products, buf[0].section_path, body),
+            content=content,
             section_path=buf[0].section_path,
             page_from=buf[0].page,
             page_to=buf[-1].page,
             products=products,
+            content_hash=_hash(products, body),
+            token_count=estimate_tokens(content),
         )
     )
 
@@ -76,15 +104,18 @@ def chunk_document(doc: ParsedDoc) -> list[Chunk]:
             buf, buf_len = [], 0
             body = block.render()
             products = match_products(body, doc.products)
+            content = _with_context(products, block.section_path, body)
             chunks.append(
                 Chunk(
                     ordinal=len(chunks),
                     kind="table_row",
-                    content=_with_context(products, block.section_path, body),
+                    content=content,
                     section_path=block.section_path,
                     page_from=block.page,
                     page_to=block.page,
                     products=products,
+                    content_hash=_hash(products, body),
+                    token_count=estimate_tokens(content),
                 )
             )
             continue
@@ -108,5 +139,7 @@ def chunk_document(doc: ParsedDoc) -> list[Chunk]:
     for i, c in enumerate(chunks):
         c.ordinal = i
         if not c.products:
+            # 제품 태그가 없으면 최소한 문서명은 붙여야 단독으로 읽힌다.
             c.content = f"{doc.title}\n{c.content}"
+            c.token_count = estimate_tokens(c.content)
     return chunks

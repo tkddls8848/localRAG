@@ -1,0 +1,368 @@
+# PoC 정답표 — data/pdfs/ 의 Lenovo 제품 가이드 6건 기준
+#
+# 만든 방법과 한계를 먼저 밝힌다.
+#   - 정답 위치(문서·페이지)는 색인된 청크에서 확인했다. 파서가 페이지를
+#     끝까지 보존하므로 페이지 번호는 정확하다.
+#   - 질문 문구는 사람이 한국어로 다시 썼다. 표의 항목명을 그대로 쓰면
+#     색인 파이프라인이 만든 문제를 같은 파이프라인이 푸는 셈이 되어 점수가
+#     실제보다 높게 나온다(tools/draft_questions.py 주석).
+#   - **이것은 출발점이다.** 실무자가 실제로 던진 질문을 섞어야 의미가 있다.
+#     `GET /admin/queries?only_failed=true` 로 실패한 질문을 모아 여기에 추가한다.
+#
+# 사용:
+#   cp data/eval/questions.poc.yaml data/eval/questions.yaml
+#   python -m app.evaluation.run --modes dense,sparse,exact,hybrid,hybrid+rerank
+#
+# 정답 위치가 여러 곳인 질문
+#   같은 사실이 표준 사양표 한 줄과 본문 절 양쪽에 있는 경우가 있다. 원문을
+#   읽고 둘 다 질문에 답한다고 확인한 경우에만 pages 에 함께 적었다. 점수를
+#   올리려고 그럴듯한 페이지를 넣으면 평가가 무의미해진다.
+#
+# 태그
+#   spec                단순 스펙 수치 조회
+#   identifier          파트번호·피처코드 정확 일치 (하이브리드 검색 검증)
+#   model-disambiguation 같은 항목을 여러 모델에 물어 모델 혼동 확인
+#   comparison          여러 제품을 함께 봐야 답이 되는 질문
+#   long-tail           문서 뒤쪽 부록의 세부 수치
+#   honesty             문서에 답이 없는 함정 질문
+
+questions:
+  # --- 표준 사양: 폼 팩터 (모델 혼동 검증용으로 6종 모두 물어본다) ---
+  - id: q001
+    question: SR630 V4 는 몇 U 랙 서버인가요?
+    answers:
+      - document: Lenovo ThinkSystem SR630 V4 Server
+        pages: [14]
+    expect: "1U rack"
+    tags: [spec, model-disambiguation]
+
+  - id: q002
+    question: SR650 V4 의 폼 팩터를 알려주세요.
+    answers:
+      - document: Lenovo ThinkSystem SR650 V4 Server
+        pages: [14]
+    expect: "2U rack"
+    tags: [spec, model-disambiguation]
+
+  - id: q003
+    question: SR650a V4 는 랙에서 몇 U 를 차지하나요?
+    answers:
+      - document: Lenovo ThinkSystem SR650a V4 and SR650i V4 Servers
+        pages: [11]
+    expect: "2U rack"
+    tags: [spec, model-disambiguation]
+
+  - id: q004
+    question: SR680a V4 의 폼 팩터는 무엇인가요?
+    answers:
+      - document: Lenovo ThinkSystem SR680a V4 Server
+        pages: [10]
+    expect: "8U rack"
+    tags: [spec, model-disambiguation]
+
+  - id: q005
+    question: SR850 V4 는 몇 U 섀시인가요?
+    answers:
+      - document: Lenovo ThinkSystem SR850 V4 Server
+        pages: [13]
+    expect: "2U rack"
+    tags: [spec, model-disambiguation]
+
+  - id: q006
+    question: SR860 V4 의 랙 높이는 몇 U 입니까?
+    answers:
+      - document: Lenovo ThinkSystem SR860 V4 Server
+        pages: [17]
+    expect: "4U rack"
+    tags: [spec, model-disambiguation]
+
+  # --- 최대 메모리 용량 ---
+  - id: q010
+    question: SR630 V4 최대 메모리 용량은 얼마인가요?
+    answers:
+      - document: Lenovo ThinkSystem SR630 V4 Server
+        pages: [14]
+    expect: "8TB"
+    tags: [spec, memory]
+
+  - id: q011
+    question: SR650 V4 에 메모리를 최대 얼마까지 넣을 수 있나요?
+    answers:
+      - document: Lenovo ThinkSystem SR650 V4 Server
+        pages: [14]
+    expect: "8TB"
+    tags: [spec, memory]
+
+  - id: q012
+    question: SR650a V4 의 최대 메모리 용량을 알려주세요.
+    answers:
+      - document: Lenovo ThinkSystem SR650a V4 and SR650i V4 Servers
+        pages: [11]
+    expect: "8TB"
+    tags: [spec, memory]
+
+  - id: q013
+    question: SR680a V4 는 메모리를 최대 몇 TB 까지 지원하나요?
+    answers:
+      - document: Lenovo ThinkSystem SR680a V4 Server
+        pages: [10]
+    expect: "4TB"
+    tags: [spec, memory]
+
+  - id: q014
+    question: SR850 V4 최대 메모리 용량은?
+    answers:
+      - document: Lenovo ThinkSystem SR850 V4 Server
+        pages: [13]
+    expect: "16TB"
+    tags: [spec, memory]
+
+  - id: q015
+    question: SR860 V4 에 장착 가능한 최대 메모리는 얼마입니까?
+    answers:
+      - document: Lenovo ThinkSystem SR860 V4 Server
+        pages: [17]
+    expect: "16TB"
+    tags: [spec, memory]
+
+  # --- 무게 ---
+  - id: q020
+    question: SR650 V4 의 최대 무게는 몇 kg 인가요?
+    answers:
+      - document: Lenovo ThinkSystem SR650 V4 Server
+        pages: [16]
+    expect: "38.8 kg"
+    tags: [spec, physical]
+
+  - id: q021
+    question: SR850 V4 서버 무게를 알려주세요.
+    answers:
+      - document: Lenovo ThinkSystem SR850 V4 Server
+        pages: [14]
+    expect: "42 kg"
+    tags: [spec, physical]
+
+  - id: q022
+    question: SR860 V4 는 최대 몇 kg 까지 나가나요?
+    answers:
+      - document: Lenovo ThinkSystem SR860 V4 Server
+        pages: [18]
+    expect: "64 kg"
+    tags: [spec, physical]
+
+  - id: q023
+    question: SR650a V4 의 최대 중량은 얼마입니까?
+    answers:
+      - document: Lenovo ThinkSystem SR650a V4 and SR650i V4 Servers
+        pages: [13]
+    expect: "38.8 kg"
+    tags: [spec, physical]
+
+  # --- 드라이브 베이 ---
+  - id: q030
+    question: SR630 V4 에 드라이브를 최대 몇 개 넣을 수 있나요?
+    answers:
+      - document: Lenovo ThinkSystem SR630 V4 Server
+        pages: [15]
+    expect: "12x 2.5-inch"
+    tags: [spec, storage]
+
+  - id: q031
+    # 정답 위치가 두 곳이다. p14 는 표준 사양 한 줄, p45 는 전면 베이 구성을
+    # 나열한 절이다. 원문을 읽고 둘 다 질문에 답한다고 확인해 함께 적었다.
+    question: SR650 V4 의 최대 드라이브 베이 구성을 알려주세요.
+    answers:
+      - document: Lenovo ThinkSystem SR650 V4 Server
+        pages: [14, 45]
+    expect: "2.5-inch"
+    tags: [spec, storage]
+
+  - id: q032
+    question: SR680a V4 의 최대 내장 스토리지 용량은?
+    answers:
+      - document: Lenovo ThinkSystem SR680a V4 Server
+        pages: [10]
+    expect: "122.88TB"
+    tags: [spec, storage]
+
+  # --- GPU ---
+  - id: q040
+    question: SR650 V4 는 GPU 를 최대 몇 장까지 지원하나요?
+    answers:
+      - document: Lenovo ThinkSystem SR650 V4 Server
+        pages: [15]
+    expect: "10x single-wide"
+    tags: [spec, gpu]
+
+  - id: q041
+    question: SR650a V4 에 더블 와이드 GPU 를 몇 장 설치할 수 있나요?
+    answers:
+      - document: Lenovo ThinkSystem SR650a V4 and SR650i V4 Servers
+        pages: [12]
+    expect: "4x double-wide"
+    tags: [spec, gpu, model-disambiguation]
+
+  - id: q042
+    question: SR680a V4 에 탑재되는 GPU 구성은 무엇인가요?
+    answers:
+      - document: Lenovo ThinkSystem SR680a V4 Server
+        pages: [10]
+    expect: "HGX B300"
+    tags: [spec, gpu]
+
+  - id: q043
+    question: SR860 V4 의 GPU 지원 수량을 알려주세요.
+    answers:
+      - document: Lenovo ThinkSystem SR860 V4 Server
+        pages: [18]
+    expect: "8x single-wide"
+    tags: [spec, gpu]
+
+  # --- 식별자 정확 일치 (하이브리드 검색의 핵심 검증) ---
+  - id: q050
+    question: SR650i V4 Inference Configuration 의 feature code 는 무엇인가요?
+    answers:
+      - document: Lenovo ThinkSystem SR650a V4 and SR650i V4 Servers
+        pages: [15]
+    expect: "CF3G"
+    tags: [identifier, model-disambiguation]
+
+  - id: q051
+    question: 파트번호 4P57A88687 은 어떤 부품인가요?
+    answers:
+      - document: Lenovo ThinkSystem SR630 V4 Server
+        pages: [122]
+      - document: Lenovo ThinkSystem SR650 V4 Server
+        pages: [165]
+      - document: Lenovo ThinkSystem SR650a V4 and SR650i V4 Servers
+        pages: [101]
+    expect: "800W"
+    tags: [identifier, long-tail]
+
+  - id: q052
+    question: SR850 V4 의 2000W 전원공급장치 파트번호를 알려주세요.
+    answers:
+      - document: Lenovo ThinkSystem SR850 V4 Server
+        pages: [80]
+    expect: "4P57A88689"
+    tags: [identifier, long-tail]
+
+  - id: q053
+    question: SR630 V4 의 머신 타입 번호는 무엇인가요?
+    answers:
+      - document: Lenovo ThinkSystem SR630 V4 Server
+        pages: [14]
+    expect: "7DG9"
+    tags: [identifier]
+
+  - id: q054
+    question: SR650a V4 의 machine type 을 알려주세요.
+    answers:
+      - document: Lenovo ThinkSystem SR650a V4 and SR650i V4 Servers
+        pages: [11]
+    expect: "7DGD"
+    tags: [identifier, model-disambiguation]
+
+  # --- 문서 뒤쪽 부록의 세부 수치 ---
+  - id: q060
+    question: SR630 V4 2.5인치 섀시의 깊이는 몇 mm 인가요?
+    answers:
+      - document: Lenovo ThinkSystem SR630 V4 Server
+        pages: [121]
+    expect: "482 mm"
+    tags: [long-tail, physical]
+
+  - id: q061
+    question: SR630 V4 800W 전원공급장치의 100V AC 입력 전류는 얼마인가요?
+    answers:
+      - document: Lenovo ThinkSystem SR630 V4 Server
+        pages: [122]
+    expect: "9.3A"
+    tags: [long-tail, power]
+
+  - id: q062
+    question: SR860 V4 전원공급장치의 200V AC 입력 전류를 알려주세요.
+    answers:
+      - document: Lenovo ThinkSystem SR860 V4 Server
+        pages: [89]
+    expect: "11.4A"
+    tags: [long-tail, power]
+
+  - id: q063
+    question: SR630 V4 는 어떤 용량의 전원공급장치를 지원하나요?
+    answers:
+      - document: Lenovo ThinkSystem SR630 V4 Server
+        pages: [16]
+    expect: "2000W"
+    tags: [spec, power]
+
+  # --- 냉각 ---
+  - id: q070
+    question: SR630 V4 의 폐쇄형 수냉 프로세서 모듈 feature code 는?
+    answers:
+      - document: Lenovo ThinkSystem SR630 V4 Server
+        pages: [31]
+    expect: "C1XH"
+    tags: [identifier, cooling]
+
+  - id: q071
+    question: SR650a V4 는 액체 냉각을 지원하나요?
+    answers:
+      - document: Lenovo ThinkSystem SR650a V4 and SR650i V4 Servers
+        pages: [20, 21]
+    tags: [cooling]
+
+  # --- 비교 (여러 문서를 함께 봐야 답이 된다) ---
+  - id: q080
+    question: SR630 V4 와 SR650 V4 의 폼 팩터 차이는 무엇인가요?
+    answers:
+      - document: Lenovo ThinkSystem SR630 V4 Server
+        pages: [14]
+      - document: Lenovo ThinkSystem SR650 V4 Server
+        pages: [14]
+    tags: [comparison]
+
+  - id: q081
+    question: SR850 V4 와 SR860 V4 중 최대 메모리가 더 큰 모델은?
+    answers:
+      - document: Lenovo ThinkSystem SR850 V4 Server
+        pages: [13]
+      - document: Lenovo ThinkSystem SR860 V4 Server
+        pages: [17]
+    expect: "16TB"
+    tags: [comparison, memory]
+
+  - id: q082
+    question: SR650 V4 와 SR650a V4 의 드라이브 베이 구성을 비교해 주세요.
+    answers:
+      - document: Lenovo ThinkSystem SR650 V4 Server
+        pages: [14, 45]
+      - document: Lenovo ThinkSystem SR650a V4 and SR650i V4 Servers
+        pages: [11]
+    tags: [comparison, storage, model-disambiguation]
+
+  # --- 함정: 문서에 답이 없다. 지어내는지 확인한다 ---
+  - id: x001
+    question: SR999 V9 의 최대 드라이브 수는 몇 개인가요?
+    unanswerable: true
+    tags: [honesty]
+
+  - id: x002
+    question: SR630 V4 의 국내 판매 가격은 얼마인가요?
+    unanswerable: true
+    tags: [honesty]
+
+  - id: x003
+    question: SR860 V4 의 MTBF 는 몇 시간입니까?
+    unanswerable: true
+    tags: [honesty]
+
+  - id: x004
+    question: SR680a V4 를 만드는 공장은 어디에 있나요?
+    unanswerable: true
+    tags: [honesty]
+
+  - id: x005
+    question: SR650 V4 한국 총판 연락처를 알려주세요.
+    unanswerable: true
+    tags: [honesty]

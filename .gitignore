@@ -7,4 +7,21 @@ venv/
 data/eval/results/*.json
 data/eval/questions.yaml
 data/eval/draft.yaml
+data/eval/report.md
 data/*.log
+
+# --- 사내 문서 본문은 저장소에 넣지 않는다 ---
+# 색인 대상 문서에는 민감 정보(단가, 인사, 계약)가 섞일 수 있다. 원본은 파일
+# 서버에 두고 저장소에는 코드와 설정만 둔다. 디렉터리는 .gitkeep 으로 남겨
+# DOC_ROOT=data/pdfs 가 새로 클론한 곳에서도 존재하게 한다.
+data/pdfs/*
+!data/pdfs/.gitkeep
+
+# DOC_ROOT 를 data/ 안 다른 곳으로 두더라도 원본이 실수로 커밋되지 않게 한다.
+data/**/*.pdf
+data/**/*.docx
+data/**/*.xlsx
+data/**/*.pptx
+data/**/*.doc
+data/**/*.xls
+data/**/*.ppt

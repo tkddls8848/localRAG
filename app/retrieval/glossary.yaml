@@ -1,0 +1,286 @@
+# 사내 용어집 — 한국어 질문을 영문 문서 용어로 잇는다.
+#
+# 왜 필요한가.
+#   이 문서군은 전부 영문인데 질문은 한국어로 들어온다. 밀집 검색은 다국어
+#   임베딩(bge-m3)이 어느 정도 건너주지만, 희소 검색은 "메모리"라는 토큰이
+#   영문 문서에 없으므로 한 건도 맞히지 못한다. 하이브리드 검색의 절반이
+#   죽어 있는 셈이고, 하필 죽은 쪽이 모델명·파트번호에 강한 쪽이다.
+#
+#   그래서 질의 단계에서 한국어를 문서의 표현으로 바꿔 준다. 문서를 번역해
+#   중복 색인하는 방식보다 저장 비용과 재색인 부담이 없다.
+#
+# 운영 방법.
+#   사내 용어는 조직마다 다르다. 이 파일은 코드가 아니므로 실무자가 직접
+#   늘린다. 평가에서 못 찾은 질문의 단어를 여기에 추가하는 것이 가장 값싼
+#   품질 개선이다. GLOSSARY_PATH 로 사내 전용 파일을 지정할 수 있다.
+
+# 구(句) 우선. 긴 표현부터 먼저 치환한다.
+# 문서가 실제로 쓰는 표기를 그대로 적는 것이 중요하다. ("Memory maximum")
+phrases:
+  최대 메모리: memory maximum
+  메모리 최대: memory maximum
+  최대 메모리 용량: memory maximum
+  메모리 용량: memory capacity
+  메모리 슬롯: memory slots DIMM
+  메모리 속도: memory speed
+  최대 용량: maximum capacity
+  지원 메모리: memory supported
+  전원 공급 장치: power supply
+  전원공급장치: power supply
+  파워 서플라이: power supply
+  소비 전력: power consumption
+  전력 소비: power consumption
+  최대 전력: maximum power
+  전원 케이블: power cord
+  전원 코드: power cord
+  폼 팩터: form factor
+  폼팩터: form factor
+  랙 높이: rack height form factor
+  드라이브 베이: drive bays
+  디스크 베이: drive bays
+  저장 장치: storage drives
+  확장 슬롯: expansion slots PCIe
+  슬롯 개수: slots
+  네트워크 어댑터: network adapter Ethernet
+  랜 카드: network adapter Ethernet
+  그래픽 카드: GPU adapter
+  운영 체제: operating systems supported
+  운영체제: operating systems supported
+  동작 온도: operating temperature
+  작동 온도: operating temperature
+  보관 온도: storage temperature
+  소음 수준: acoustical noise
+  액체 냉각: liquid cooling water
+  수냉 방식: direct water cooling
+  직접 수냉: direct water cooling DWC
+  공기 냉각: air cooling
+  파트 번호: part number
+  부품 번호: part number
+  피처 코드: feature code
+  기능 코드: feature code
+  주문 번호: machine type model
+  모델 번호: machine type model
+  레이드 컨트롤러: RAID controller adapter
+  시스템 관리: systems management XCC
+  관리 포트: management port XCC
+  원격 관리: remote management XCC
+  보안 기능: security TPM
+  전면 베이: front bays
+  후면 베이: rear bays
+  내부 드라이브: internal drives
+  핫 스왑: hot-swap
+  이중화 전원: redundant power supplies
+  전원 효율: power supply efficiency
+  에너지 효율: efficiency Titanium Platinum
+  공기 흐름: airflow
+  무상 보증: warranty
+  보증 기간: warranty
+  표준 사양: standard specifications
+  최대 구성: maximum configuration
+  프로세서 종류: processor options
+  씨피유: processor CPU
+  코어 수: cores
+  소켓 수: sockets
+  캐시 용량: cache
+  발열량: heat output thermal
+  치수: dimensions
+  기본 구성: standard models
+  지원 여부: supported
+  차이점: differences comparison
+  # 아래 항목은 평가에서 못 찾은 질문의 어휘를 보고 추가했다.
+  # 용어집 보강은 재색인이 필요 없는 가장 값싼 개선 경로다(operations.md 6).
+  몇 U: form factor rack
+  U 랙: form factor rack
+  랙 유닛: form factor rack
+  더블 와이드: double-wide
+  싱글 와이드: single-wide
+  이중 폭: double-wide
+  폐쇄형 수냉: closed-loop liquid cooling
+  개방형 수냉: open-loop liquid cooling
+  폐쇄형: closed-loop
+  개방형: open-loop
+  수냉 모듈: Neptune Core Module liquid cooling
+  GPU 구성: GPU support
+  GPU 지원: GPU support
+  그래픽 구성: GPU support
+  드라이브 수: drive bays
+  베이 수: drive bays
+  최대 드라이브: drive bays maximum
+  드라이브 최대: drive bays maximum
+  내장 스토리지: maximum internal storage
+  전원 용량: power supply
+  입력 전류: AC input current
+  머신 타입: machine types
+  모델 번호는: machine types
+  몇 개: number
+  몇 장: number
+  몇 kg: weight
+  몇 mm: dimensions
+  몇 W: power supply
+
+  # --- 사내 문서(회사소개서·재무·조직) 용어 ---
+  # 코퍼스에 한국어 문서가 들어오면서 추가했다. 값이 한국어여도 된다.
+  # 용어집은 "질문의 표현 -> 문서의 표현" 대응표이고, 문서가 한국어면
+  # 문서의 표현도 한국어다.
+  총매출액: 매출액 합계 revenue total
+  총매출: 매출액 합계
+  전체 매출: 매출액 합계
+  매출 합계: 매출액 합계
+  매출 총액: 매출액 합계
+  매출 추이: 매출액 합계
+  연간 매출: 매출액 합계
+  직원 수: 직원 employees
+  인원 수: 직원 employees
+  대표자: 대표 CEO
+  설립일: 설립 established
+  설립 연도: 설립 established
+  사업 분야: 사업 분야
+  인증 현황: 인증 certifications
+  파트너십: 파트너 partnership
+  주요 고객: 고객 customers
+  수행 실적: 실적 track record
+
+# 단어 단위. 조사를 떼어낸 어간으로 찾는다.
+terms:
+  메모리: [memory, DIMM]
+  용량: [capacity, maximum]
+  최대: [maximum]
+  최소: [minimum]
+  최대치: [maximum]
+  전력: [power, watts]
+  전원: [power]
+  전압: [voltage]
+  와트: [watts]
+  프로세서: [processor]
+  씨피유: [processor]
+  코어: [cores]
+  소켓: [socket]
+  캐시: [cache]
+  드라이브: [drive, bays]
+  디스크: [drive]
+  저장: [storage]
+  베이: [bays]
+  슬롯: [slots]
+  확장: [expansion]
+  어댑터: [adapter]
+  네트워크: [network, Ethernet]
+  이더넷: [Ethernet]
+  포트: [ports]
+  가속기: [accelerator, GPU]
+  그래픽: [GPU, graphics]
+  냉각: [cooling]
+  쿨링: [cooling]
+  팬: [fans]
+  온도: [temperature]
+  습도: [humidity]
+  소음: [acoustical, noise]
+  무게: [weight]
+  중량: [weight]
+  크기: [dimensions]
+  높이: [height]
+  너비: [width]
+  깊이: [depth]
+  랙: [rack]
+  섀시: [chassis, form, factor]
+  백플레인: [backplane]
+  라이저: [riser]
+  컨트롤러: [controller]
+  레이드: [RAID]
+  펌웨어: [firmware]
+  드라이버: [drivers]
+  보증: [warranty]
+  인증: [certifications]
+  규정: [compliance]
+  보안: [security]
+  관리: [management]
+  운영체제: [operating, systems]
+  지원: [supported, support]
+  호환: [compatible, supported]
+  옵션: [options]
+  구성: [configuration]
+  사양: [specifications]
+  스펙: [specifications]
+  표준: [standard]
+  속도: [speed]
+  대역폭: [bandwidth]
+  채널: [channels]
+  개수: [number]
+  수량: [number]
+  종류: [types, options]
+  전면: [front]
+  후면: [rear]
+  내부: [internal]
+  외부: [external]
+  이중화: [redundant]
+  효율: [efficiency]
+  인치: [inch]
+  모델: [model]
+  서버: [server]
+  제품: [product]
+  비교: [comparison]
+  차이: [differences]
+  기능: [features]
+  특징: [features]
+  설치: [installation]
+  방법: [how]
+  절차: [procedure]
+  요구사항: [requirements]
+  제한: [limitations]
+  주의: [note, caution]
+
+  # --- 사내 문서 용어 (복합어 분해의 표제어로도 쓰인다) ---
+  # "총매출액" 처럼 붙여 쓴 복합어는 이 표제어를 포함하는지로 찾는다.
+  매출액: [revenue, sales]
+  매출: [revenue, sales]
+  총액: [total]
+  합계: [total, sum]
+  소계: [subtotal]
+  순이익: [net, income, profit]
+  당기순이익: [net, income]
+  이익: [profit, income]
+  손실: [loss]
+  자산: [assets]
+  총자산: [assets, total]
+  부채: [liabilities]
+  자본: [equity, capital]
+  자본금: [capital]
+  비율: [ratio]
+  직원: [employees, headcount]
+  임직원: [employees]
+  인력: [staff, personnel]
+  조직: [organization]
+  설립: [established, founded]
+  대표: [CEO, representative]
+  본사: [headquarters]
+  지사: [branch, office]
+  주소: [address]
+  연락처: [contact]
+  파트너: [partner, partnership]
+  고객: [customer, client]
+  실적: [performance, record]
+  현황: [status, overview]
+  등급: [grade, rating]
+  자격: [qualification]
+  특허: [patent]
+  수상: [award]
+  규모: [size, scale]
+  분야: [field, area]
+  회사: [company]
+  사업: [business]
+
+# 문서 안의 표기 편차. 한쪽으로 물으면 다른 쪽도 함께 찾는다.
+synonyms:
+  gpu: [GPU, accelerator]
+  cpu: [processor, CPU]
+  psu: [power, supply]
+  nvme: [NVMe, drive]
+  ssd: [SSD, drive]
+  hdd: [HDD, drive]
+  dimm: [DIMM, memory]
+  rdimm: [RDIMM, memory]
+  pcie: [PCIe, slots]
+  xcc: [XCC, management]
+  tdp: [TDP, thermal, power]
+  raid: [RAID, controller]
+  os: [operating, systems]
+  dwc: [direct, water, cooling]

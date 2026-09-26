@@ -2,12 +2,17 @@
 
 인터페이스를 의도적으로 좁게 유지한다. 특정 제공자에만 있는 기능을 여기 넣는
 순간 추상화가 무너진다(decisions.md D3).
+
+교체 가능성은 두 번째 어댑터를 붙여 보기 전까지 증명되지 않는다. 그래서
+`fake` 를 테스트 전용이 아니라 정식 두 번째 구현으로 유지한다. 색인·검색·
+API 경로 전체가 제공자를 모른 채 동작하는지 매번 확인하는 장치다.
 """
 from __future__ import annotations
 
-from typing import Protocol, Sequence
+from typing import Iterator, Protocol, Sequence, runtime_checkable
 
 
+@runtime_checkable
 class LLMProvider(Protocol):
     """답변 생성기. 임베딩과 달리 교체해도 재색인이 필요 없다."""
 
@@ -16,7 +21,16 @@ class LLMProvider(Protocol):
 
     def generate(self, system: str, user: str) -> str: ...
 
+    def generate_stream(self, system: str, user: str) -> Iterator[str]:
+        """토큰 단위 생성.
 
+        선택 기능이다. 지원하지 않는 제공자는 `generate` 결과를 한 번에
+        내보내면 된다. 스트리밍을 필수로 만들면 어댑터 진입 장벽이 올라간다.
+        """
+        ...
+
+
+@runtime_checkable
 class EmbeddingProvider(Protocol):
     """임베딩 생성기.
 

@@ -50,3 +50,9 @@ class EchoLLMProvider:
     def generate(self, system: str, user: str) -> str:
         blocks = len(re.findall(r"^\[\d+\] 출처:", user, re.MULTILINE))
         return f"(테스트 생성기) 발췌 {blocks}건을 받았다." + (" [1]" if blocks else "")
+
+    def generate_stream(self, system: str, user: str):
+        """스트리밍 경로도 제공자를 모른 채 시험할 수 있어야 한다."""
+        text = self.generate(system, user)
+        for i in range(0, len(text), 8):
+            yield text[i : i + 8]

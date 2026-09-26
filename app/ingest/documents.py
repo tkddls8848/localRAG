@@ -4,7 +4,8 @@ from __future__ import annotations
 import hashlib
 from pathlib import Path
 
-from app.ingest.parser import ParsedDoc, ProseBlock, TableRowBlock, _extract_products, parse_pdf
+from app.ingest.parser import ParsedDoc, ProseBlock, TableRowBlock, parse_pdf
+from app.taxonomy import extract_products
 
 SUPPORTED = {'.pdf', '.docx', '.xlsx', '.pptx'}
 
@@ -16,7 +17,7 @@ def parse_document(path: str | Path) -> ParsedDoc:
         raise ValueError(f'지원하지 않는 형식: {suffix}. PDF, DOCX, XLSX, PPTX를 사용하세요.')
     if suffix == '.pdf':
         return parse_pdf(path)
-    doc = ParsedDoc(str(path), path.stem, _extract_products(path.stem), 0,
+    doc = ParsedDoc(str(path), path.stem, extract_products(path.stem), 0,
                     hashlib.sha256(path.read_bytes()).hexdigest())
     if suffix == '.docx':
         from docx import Document
@@ -59,5 +60,5 @@ def parse_document(path: str | Path) -> ParsedDoc:
                         doc.blocks.append(TableRowBlock(
                             [(f'열 {c}', cell.text) for c, cell in enumerate(row.cells, 1)],
                             i, f'{section} > 표 행 {r}'))
-    doc.products = _extract_products(doc.title)
+    doc.products = extract_products(doc.title)
     return doc

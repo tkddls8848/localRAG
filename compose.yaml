@@ -1,26 +1,58 @@
+# 로컬·사내 PoC 용 전체 스택. 컨테이너는 app / db / ollama 세 개로 끝낸다.
+# migrate 와 model-pull 은 한 번 돌고 끝나는 준비 작업이다(상주하지 않는다).
+#
+# 기동:  docker compose up -d
+# 상태:  docker compose ps ; curl localhost:8000/ready
+
+x-app: &app-base
+  build: .
+  environment:
+    APP_ENV: ${APP_ENV:-poc}
+    LOG_FORMAT: ${LOG_FORMAT:-json}
+    LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    POSTGRES_HOST: db
+    POSTGRES_DB: ${POSTGRES_DB:-specrag}
+    POSTGRES_USER: ${POSTGRES_USER:-specrag}
+    POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+    OLLAMA_BASE_URL: http://ollama:11434
+    EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-ollama}
+    LLM_PROVIDER: ${LLM_PROVIDER:-ollama}
+    EMBEDDING_MODEL: ${EMBEDDING_MODEL:-bge-m3}
+    EMBEDDING_DIM: ${EMBEDDING_DIM:-1024}
+    LLM_MODEL: ${LLM_MODEL:-qwen3:8b}
+    LLM_CONTEXT_SIZE: ${LLM_CONTEXT_SIZE:-8192}
+    RERANK_PROVIDER: ${RERANK_PROVIDER:-rules}
+    GROUNDING_MODE: ${GROUNDING_MODE:-warn}
+    API_KEYS: ${API_KEYS:-}
+    DOC_ROOT: ${DOC_ROOT:-data/pdfs}
+  volumes:
+    - ./data:/app/data:ro
+
 services:
   app:
-    build: .
-    environment:
-      POSTGRES_HOST: db
-      POSTGRES_DB: ${POSTGRES_DB:-specrag}
-      POSTGRES_USER: ${POSTGRES_USER:-specrag}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
-      OLLAMA_BASE_URL: http://ollama:11434
-      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-ollama}
-      LLM_PROVIDER: ${LLM_PROVIDER:-ollama}
-      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-bge-m3}
-      LLM_MODEL: ${LLM_MODEL:-qwen3:8b}
-      LLM_CONTEXT_SIZE: ${LLM_CONTEXT_SIZE:-8192}
+    <<: *app-base
     ports:
       - "127.0.0.1:8000:8000"
-    volumes:
-      - ./data:/app/data:ro
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      ollama:
+        condition: service_healthy
+    restart: unless-stopped
+    # 노트북에서 돌리는 것을 전제로 한다. 모델이 메모리를 먹으므로 앱은 조인다.
+    mem_limit: 1g
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # 스키마는 앱 기동과 분리한다. 앱이 여러 개 떠도 마이그레이션은 한 번만 돈다.
+  migrate:
+    <<: *app-base
+    command: ["python", "-m", "app.db.migrate"]
     depends_on:
       db:
         condition: service_healthy
-      ollama:
-        condition: service_started
+    restart: "no"
 
   db:
     image: pgvector/pgvector:pg16
@@ -28,22 +60,57 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-specrag}
       POSTGRES_USER: ${POSTGRES_USER:-specrag}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+      POSTGRES_INITDB_ARGS: "--data-checksums"
     ports:
       - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ./app/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      # 새 볼륨이면 initdb 가 번호순으로 실행한다. 기존 볼륨이면 migrate 가 맡는다.
+      - ./app/db/migrations:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-specrag}"]
       interval: 5s
       retries: 10
+    restart: unless-stopped
+    shm_size: 256m
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
 
   ollama:
     image: ollama/ollama
+    environment:
+      # 모델을 메모리에 붙잡아 둔다. 질문마다 로딩하면 지연을 품질 문제로 오해한다.
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-30m}
     ports:
       - "127.0.0.1:${OLLAMA_PORT:-11434}:11434"
     volumes:
       - ollama:/root/.ollama
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # 모델 내려받기. 없는 모델로 기동하면 /ready 가 503 을 준다.
+  model-pull:
+    image: ollama/ollama
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        ollama pull ${EMBEDDING_MODEL:-bge-m3} &&
+        ollama pull ${LLM_MODEL:-qwen3:8b}
+    depends_on:
+      ollama:
+        condition: service_healthy
+    restart: "no"
 
 volumes:
   pgdata:
