@@ -59,7 +59,7 @@ def test_particles_are_stripped():
 
 def test_korean_stems_survive_expansion_for_korean_documents():
     """코퍼스에 한국어 문서가 섞이면 영문 확장만으로는 희소 검색이 0건이다."""
-    aq = analyze("트라이얼정보통신의 주요 사업 분야는?")
+    aq = analyze("가나다정보통신의 주요 사업 분야는?")
     assert "사업" in aq.terms and "분야" in aq.terms
     # 영문 확장이 일어나는 질문에서도 어간은 남아야 한다.
     mixed = analyze("회사 인증 현황은?")
@@ -75,7 +75,7 @@ def test_korean_compound_decomposes_to_glossary_entry():
     assert glossary.decompose("연매출") == "매출"
     assert glossary.decompose("매출액") is None      # 자기 자신은 분해하지 않는다
     # 실제로 겪은 실패: 이 질문에서 정답 행이 12위로 밀렸다.
-    terms = analyze("트라이얼정보통신 2025년 총매출액").terms
+    terms = analyze("가나다정보통신 2025년 총매출액").terms
     assert "매출액" in terms and "합계" in terms
 
 
